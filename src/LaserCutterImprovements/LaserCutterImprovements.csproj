@@ -6,8 +6,5 @@
     <!-- The IL./On. hook types. Compile only: HookGenPatcher (a manifest dependency) generates MMHOOK_RoR2.dll on the
          player's machine. The package targets .NET Framework, which the game's runtime is compatible with (NU1701). -->
     <PackageReference Include="MMHOOK.RoR2" Version="2026.10.8" IncludeAssets="compile" NoWarn="NU1701" />
-    <!-- GameAssetPathsBetter, the GUID keys of the game's assets. RoR2BepInExPack itself is installed with
-         BepInExPack (and is a manifest dependency, for the version). -->
-    <PackageReference Include="RoR2BepInExPack" Version="1.44.0" IncludeAssets="compile" />
   </ItemGroup>
 </Project>

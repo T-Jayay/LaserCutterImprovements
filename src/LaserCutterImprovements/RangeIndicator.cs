@@ -1,17 +1,15 @@
+using System;
 using RoR2;
-using RoR2BepInExPack.GameAssetPathsBetter;
 using UnityEngine;
-using UnityEngine.AddressableAssets;
 using UnityEngine.Rendering;
 
 namespace LaserCutterImprovements
 {
     /// <summary>
-    /// A part of the Laser Cutter's range sphere ahead of the player, drawn with Focus Crystal's range indicator
-    /// material: a band around the aim direction from a little above it down to straight below. The material
-    /// highlights where it meets the ground, which draws the line where the range ends. Added to the player's body
-    /// the first time it is shown; <see cref="LaserHooks"/> shows it every frame the beam reaches its maximum range,
-    /// and it fades out in the frames it isn't shown.
+    /// A part of the Laser Cutter's range sphere ahead of the player, drawn with the game's Cloud Remap shader as plain
+    /// colours: a faint, evenly translucent orange band around the aim direction from a little above it down to
+    /// straight below, and a line on the ground where the sphere meets it. Added to the player's body the first time it is shown; <see cref="LaserHooks"/> shows it every
+    /// frame the beam reaches its maximum range, and it fades out in the frames it isn't shown.
     /// </summary>
     internal sealed class RangeIndicator : MonoBehaviour
     {
@@ -20,16 +18,30 @@ namespace LaserCutterImprovements
         private const int Columns = 24;
         private const int Rows = 24;
         private const float FadeTime = 0.15f;
+        private const float BandAlpha = 0.12f; // at the band's centre
+        private const float LineAlpha = 0.9f; // along the line, fading out at both ends
+        private const float LineWidth = 0.4f;
+        private const float LineStep = 2.5f; // degrees between the points of the line
+        private const int LineSide = (int)(HalfWidth / LineStep); // points to each side of the aim direction
+        private const float WalkStep = 10f; // degrees between the points tested for ground, going down a vertical circle
+        private const float WalkBack = 20f; // degrees above where the last circle found ground that the next one starts
+        private const float LowestElevation = -89f;
+        private const float SoftFade = 20f; // the shader's soft-particle fade: only the last ~5 cm in front of geometry fades
         private const string TintColor = "_TintColor";
+        private const float GroundOffset = 0.3f; // metres above the ground, so the line clears its depth
 
+        private static readonly Color IndicatorColor = new Color(1f, 0.6f, 0.2f);
         private static Material template;
 
         private GameObject sphere;
+        private GameObject lineObject;
+        private LineRenderer line;
         private Material material;
         private Mesh mesh;
         private readonly Vector3[] vertices = new Vector3[(Rows + 1) * (Columns + 1)];
         private readonly Color[] colors = new Color[(Rows + 1) * (Columns + 1)];
-        private Color tint;
+        private readonly Vector3[] linePositions = new Vector3[2 * LineSide + 1];
+        private bool hasLine;
         private float alpha;
         private int shownFrame = -1;
 
@@ -46,12 +58,20 @@ namespace LaserCutterImprovements
         {
             if (!template)
             {
-                template = Addressables.LoadAssetAsync<Material>(
-                    RoR2_Base_NearbyDamageBonus.matNearbyDamageBonusRangeIndicator_mat).WaitForCompletion();
+                // The game's particle shader, alpha-blended and drawn on both sides: white texture, no colour ramp and
+                // no clouds, so the colour is the tint times the vertex colours.
+                template = new Material(LegacyShaderAPI.Find("Hopoo Games/FX/Cloud Remap"));
+                template.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+                template.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+                template.SetTexture("_MainTex", Texture2D.whiteTexture);
+                template.SetFloat("_InvFade", SoftFade);
+                SetToggle(template, "_DisableRemapOn", "DISABLEREMAP", true);
+                SetToggle(template, "_CloudsOn", "USE_CLOUDS", false);
+                SetToggle(template, "_VertexColorOn", "VERTEXCOLOR", true);
+                SetToggle(template, "_VertexAlphaOn", "VERTEXALPHA", true);
             }
-            // A copy, so fading it doesn't change Focus Crystal's indicator.
+            // A copy, so fading it doesn't change the other indicators.
             material = new Material(template);
-            tint = material.GetColor(TintColor);
 
             mesh = new Mesh { name = "LaserCutterRangeIndicator" };
             mesh.MarkDynamic();
@@ -81,6 +101,41 @@ namespace LaserCutterImprovements
             meshRenderer.shadowCastingMode = ShadowCastingMode.Off;
             meshRenderer.receiveShadows = false;
             sphere.SetActive(false);
+
+            lineObject = new GameObject("LaserCutterRangeLine");
+            line = lineObject.AddComponent<LineRenderer>();
+            line.sharedMaterial = material;
+            line.useWorldSpace = true;
+            line.widthMultiplier = LineWidth;
+            line.alignment = LineAlignment.View;
+            line.shadowCastingMode = ShadowCastingMode.Off;
+            line.receiveShadows = false;
+            line.numCapVertices = 2;
+            // White: the material's colour gives the line its colour, as for the band.
+            Gradient gradient = new Gradient();
+            gradient.SetKeys(
+                new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                new[]
+                {
+                    new GradientAlphaKey(0f, 0f), new GradientAlphaKey(LineAlpha, 0.2f),
+                    new GradientAlphaKey(LineAlpha, 0.8f), new GradientAlphaKey(0f, 1f)
+                });
+            line.colorGradient = gradient;
+            lineObject.SetActive(false);
+        }
+
+        // The shader's toggles are a float property and a keyword each.
+        private static void SetToggle(Material material, string property, string keyword, bool on)
+        {
+            material.SetFloat(property, on ? 1f : 0f);
+            if (on)
+            {
+                material.EnableKeyword(keyword);
+            }
+            else
+            {
+                material.DisableKeyword(keyword);
+            }
         }
 
         // The band on a unit sphere around the horizontal aim direction (+Z), scaled to the range.
@@ -104,27 +159,92 @@ namespace LaserCutterImprovements
                     Vector3 point = Quaternion.Euler(-elevation, side * HalfWidth, 0f) * Vector3.forward;
                     int i = row * (Columns + 1) + column;
                     vertices[i] = point;
-                    colors[i] = new Color(1f, 1f, 1f, topFade * (1f - side * side));
+                    colors[i] = new Color(1f, 1f, 1f, BandAlpha * topFade * (1f - side * side));
                 }
             }
             mesh.vertices = vertices;
             mesh.normals = vertices; // on a unit sphere, the outward normals are the positions
             mesh.colors = colors;
             mesh.RecalculateBounds();
-            sphere.transform.SetPositionAndRotation(origin, Quaternion.LookRotation(horizontal));
+            Quaternion aim = Quaternion.LookRotation(horizontal);
+            sphere.transform.SetPositionAndRotation(origin, aim);
             sphere.transform.localScale = new Vector3(range, range, range);
+            PlaceLine(origin, aim, range, top);
+        }
+
+        // The line where the range sphere meets the ground: the points found at the yaws around the aim direction,
+        // as far out on each side as every yaw has ground.
+        private void PlaceLine(Vector3 origin, Quaternion aim, float range, float top)
+        {
+            hasLine = FindGround(origin, aim, range, 0f, top, out linePositions[LineSide], out float centreElevation);
+            if (!hasLine)
+            {
+                return;
+            }
+            int first = LineSide;
+            int last = LineSide;
+            // Each yaw starts a little above where the one before found ground, which is about as high.
+            float elevation = centreElevation;
+            while (last < linePositions.Length - 1 && FindGround(origin, aim, range, (last + 1 - LineSide) * LineStep,
+                Mathf.Min(elevation + WalkBack, top), out linePositions[last + 1], out elevation))
+            {
+                last++;
+            }
+            elevation = centreElevation;
+            while (first > 0 && FindGround(origin, aim, range, (first - 1 - LineSide) * LineStep,
+                Mathf.Min(elevation + WalkBack, top), out linePositions[first - 1], out elevation))
+            {
+                first--;
+            }
+            int count = last - first + 1;
+            hasLine = count >= 2;
+            if (hasLine)
+            {
+                Array.Copy(linePositions, first, linePositions, 0, count);
+                line.positionCount = count;
+                line.SetPositions(linePositions);
+            }
+        }
+
+        // Walks down the sphere's vertical circle at this yaw from startElevation and returns the ground hit by the
+        // first segment between two points on the sphere that meets it, and the elevation of the segment's end.
+        private static bool FindGround(Vector3 origin, Quaternion aim, float range, float yaw, float startElevation,
+            out Vector3 ground, out float elevation)
+        {
+            Vector3 previous = SpherePoint(origin, aim, range, yaw, startElevation);
+            elevation = startElevation;
+            while (elevation > LowestElevation)
+            {
+                elevation = Mathf.Max(elevation - WalkStep, LowestElevation);
+                Vector3 next = SpherePoint(origin, aim, range, yaw, elevation);
+                if (Physics.Linecast(previous, next, out RaycastHit hit, LayerIndex.world.mask, QueryTriggerInteraction.Ignore))
+                {
+                    ground = hit.point + hit.normal * GroundOffset;
+                    return true;
+                }
+                previous = next;
+            }
+            ground = default;
+            return false;
+        }
+
+        private static Vector3 SpherePoint(Vector3 origin, Quaternion aim, float range, float yaw, float elevation)
+        {
+            return origin + aim * (Quaternion.Euler(-elevation, yaw, 0f) * Vector3.forward) * range;
         }
 
         private void LateUpdate()
         {
             alpha = Mathf.MoveTowards(alpha, shownFrame == Time.frameCount ? 1f : 0f, Time.deltaTime / FadeTime);
             sphere.SetActive(alpha > 0f);
-            material.SetColor(TintColor, new Color(tint.r, tint.g, tint.b, tint.a * alpha));
+            lineObject.SetActive(alpha > 0f && hasLine);
+            material.SetColor(TintColor, new Color(IndicatorColor.r, IndicatorColor.g, IndicatorColor.b, alpha));
         }
 
         private void OnDestroy()
         {
             Destroy(sphere);
+            Destroy(lineObject);
             Destroy(material);
             Destroy(mesh);
         }

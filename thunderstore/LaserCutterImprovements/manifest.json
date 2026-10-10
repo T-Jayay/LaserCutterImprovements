@@ -5,7 +5,6 @@
   "description": "Engineer's Laser Cutter: a range indicator at max range, a beam that ends where it hits, and optional smaller turret hitbox for your beam and healing allies while damaging enemies behind them. Client-side.",
   "dependencies": [
     "bbepis-BepInExPack-5.4.2122",
-    "RiskofThunder-HookGenPatcher-1.2.9",
-    "RiskofThunder-RoR2BepInExPack-1.44.0"
+    "RiskofThunder-HookGenPatcher-1.2.9"
   ]
 }
