@@ -16,7 +16,7 @@ namespace LaserCutterImprovements
     {
         public const string PluginGUID = "revor.LaserCutterImprovements";
         public const string PluginName = "LaserCutterImprovements";
-        public const string PluginVersion = "1.0.0"; // tools/package.py checks this against the manifest
+        public const string PluginVersion = "1.0.1"; // tools/package.py checks this against the manifest
 
         internal static ManualLogSource Log { get; private set; }
 

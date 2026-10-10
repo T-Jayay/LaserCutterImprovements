@@ -1,6 +1,6 @@
 # LaserCutterImprovements
 
-A Risk of Rain 2 (BepInEx) mod for the Engineer's Laser Cutter, its new alternative primary: a range indicator at maximum range, a visible beam that ends where the attack stops, a smaller hitbox for allied Engineer turrets for your own beam, and healing mechanical allies without stopping the beam.
+A Risk of Rain 2 (BepInEx) mod for the Engineer's Laser Cutter, its new alternative primary: quality of life fixes (a range indicator at maximum range, a visible beam that ends where the attack stops, a smaller hitbox for allied Engineer turrets for your own beam) and one optional balance change (healing mechanical allies without stopping the beam).
 
 - Store page: [revoreverse/LaserCutterImprovements](https://thunderstore.io/c/riskofrain2/p/revoreverse/LaserCutterImprovements/). Its source, [thunderstore/LaserCutterImprovements/README.md](thunderstore/LaserCutterImprovements/README.md), describes every feature and setting for players; this file is for development.
 - [Modding guide](https://github.com/T-Jayay/DroneImprovements/blob/main/docs/MODDING_GUIDE.md) (in the DroneImprovements repo): how this mod, [DroneImprovements](https://github.com/T-Jayay/DroneImprovements), [SprintImprovements](https://github.com/T-Jayay/SprintImprovements), [MarkAllSeen](https://github.com/T-Jayay/MarkAllSeen) and [AllyClarity](https://github.com/T-Jayay/AllyClarity) are set up, built, tested and published.

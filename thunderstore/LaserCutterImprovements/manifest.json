@@ -1,6 +1,6 @@
 {
   "name": "LaserCutterImprovements",
-  "version_number": "1.0.0",
+  "version_number": "1.0.1",
   "website_url": "https://github.com/T-Jayay/LaserCutterImprovements",
   "description": "Engineer's Laser Cutter: a range indicator at max range, a beam that ends where it hits, and optional smaller turret hitbox for your beam and healing allies while damaging enemies behind them. Client-side.",
   "dependencies": [

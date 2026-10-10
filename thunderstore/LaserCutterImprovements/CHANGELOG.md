@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1
+
+- New icon.
+- The store page now says which problem of the game's Laser Cutter each feature fixes, and separates the quality of life fixes from the balance change (`HealAndDamage`, off by default).
+
 ## 1.0.0
 
 - Initial release, for the Engineer's Laser Cutter.

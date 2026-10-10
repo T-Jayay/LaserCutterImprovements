@@ -5,16 +5,19 @@
 Writes thunderstore/LaserCutterImprovements/icon.png (256x256), which is
 also shown in the Risk of Options mod list.
 
-Glyph: a laser beam from the lower left that ends on an arc, the edge of
-its range. The style and the background(), bracket_mask() and compose()
-helpers are copied from DroneImprovements' tools/make_icons.py (a dark
-glitch background, glowing corner brackets and a glowing one-colour
-glyph); keep the copies identical. The glyph is drawn as a white-on-black
-mask at WORK_SIZE and coloured by compose(). The output only depends on
-the Pillow version.
+Glyph: a straight white laser beam from an emitter on the left that
+reaches a tall light orange arc on the right, the edge of its range, with a
+short orange ground line under it. The style and the background(),
+bracket_mask() and compose() helpers are copied from DroneImprovements'
+tools/make_icons.py (a dark glitch background, glowing corner brackets and
+a glowing glyph); keep the copies identical. The two glyphs are drawn as
+white-on-black masks at WORK_SIZE; compose_two() layers them in their two
+colours the way compose() does for one, and the background tint and
+brackets take the orange. The output only depends on the Pillow version.
 """
 from __future__ import annotations
 
+import math
 import random
 from pathlib import Path
 
@@ -117,30 +120,88 @@ def compose(glyph: Image.Image, color: Color, seed: int,
     return base.resize((ICON_SIZE, ICON_SIZE), Image.Resampling.LANCZOS)
 
 
-def laser_glyph() -> Image.Image:
-    """Package icon: a beam from the lower left, ending on a range arc."""
+def add_glyph(base: Image.Image, glyph: Image.Image, color: Color) -> Image.Image:
+    """Add a glowing glyph on top of an RGBA image at WORK_SIZE.
+
+    The same glow, solid glyph and brighter core as compose(), without the
+    background and brackets, so that a second glyph can be layered on top.
+    """
+    size = (WORK_SIZE, WORK_SIZE)
+    glow = glyph.filter(ImageFilter.GaussianBlur(38))
+    glow_rgb = Image.merge("RGB", [
+        ImageChops.multiply(glow, Image.new("L", size, c)) for c in color])
+    lit = ImageChops.add(base.convert("RGB"), glow_rgb)
+    base = Image.merge("RGBA", (*lit.split(), Image.new("L", size, 255)))
+    base.paste(Image.new("RGBA", size, color + (255,)), (0, 0), glyph)
+    core = glyph.filter(ImageFilter.MinFilter(21)).filter(
+        ImageFilter.GaussianBlur(10))
+    highlight = tuple(min(255, int(c + (255 - c) * 0.6)) for c in color)
+    base.paste(Image.new("RGBA", size, highlight + (255,)), (0, 0),
+               ImageChops.multiply(core, Image.new("L", size, 150)))
+    return base
+
+
+def compose_two(range_glyph: Image.Image, range_color: Color,
+                beam_glyph: Image.Image, beam_color: Color,
+                seed: int) -> Image.Image:
+    """Like compose(), with a second glyph in another colour on top.
+
+    The background tint, the brackets and the first glyph come from
+    range_color as in compose(); the beam is layered over them at WORK_SIZE
+    before the single downscale.
+    """
+    size = (WORK_SIZE, WORK_SIZE)
+    base = background(seed, range_color).convert("RGBA")
+    dark = tuple(int(c * 0.72) for c in range_color)
+    base.paste(Image.new("RGBA", size, dark + (255,)), (0, 0), bracket_mask())
+    base = add_glyph(base, range_glyph, range_color)
+    base = add_glyph(base, beam_glyph, beam_color)
+    return base.resize((ICON_SIZE, ICON_SIZE), Image.Resampling.LANCZOS)
+
+
+EMITTER = (210, 512)
+RANGE_RADIUS = 560
+
+
+def range_glyph() -> Image.Image:
+    """The range: a tall arc bowing outward on the right, and a ground line."""
     glyph = Image.new("L", (WORK_SIZE, WORK_SIZE), 0)
     draw = ImageDraw.Draw(glyph)
-    origin = (250, 790)
-    radius = 560
-    # The range: an arc around the beam's origin, from up to right.
-    draw.arc([origin[0] - radius, origin[1] - radius,
-              origin[0] + radius, origin[1] + radius],
-             start=-90, end=0, fill=255, width=46)
-    # The beam, ending just short of the arc, and its emitter.
-    end = (origin[0] + int(radius * 0.62), origin[1] - int(radius * 0.62))
-    draw.line([origin, end], fill=255, width=70)
-    draw.ellipse([end[0] - 52, end[1] - 52, end[0] + 52, end[1] + 52],
-                 fill=255)
-    draw.ellipse([origin[0] - 90, origin[1] - 90, origin[0] + 90,
-                  origin[1] + 90], fill=255)
+    ox, oy = EMITTER
+    r = RANGE_RADIUS
+    draw.arc([ox - r, oy - r, ox + r, oy + r], start=-40, end=40,
+             fill=255, width=46)
+    # Round the arc's ends.
+    for angle in (-40, 40):
+        x = ox + r * math.cos(math.radians(angle))
+        y = oy + r * math.sin(math.radians(angle))
+        draw.ellipse([x - 23, y - 23, x + 23, y + 23], fill=255)
+    # The ground where the range ends, under the arc.
+    ground = 890
+    draw.line([(ox + r - 190, ground), (ox + r + 90, ground)], fill=255,
+              width=46)
+    for x in (ox + r - 190, ox + r + 90):
+        draw.ellipse([x - 23, ground - 23, x + 23, ground + 23], fill=255)
+    return glyph
+
+
+def beam_glyph() -> Image.Image:
+    """The laser: an emitter on the left and a straight beam to the arc."""
+    glyph = Image.new("L", (WORK_SIZE, WORK_SIZE), 0)
+    draw = ImageDraw.Draw(glyph)
+    ox, oy = EMITTER
+    end = ox + RANGE_RADIUS - 46
+    draw.line([(ox, oy), (end, oy)], fill=255, width=64)
+    draw.ellipse([ox - 84, oy - 84, ox + 84, oy + 84], fill=255)
+    draw.ellipse([end - 32, oy - 32, end + 32, oy + 32], fill=255)
     return glyph
 
 
 def main() -> None:
     """Draw the icon and save it."""
     PACKAGE_ICON.parent.mkdir(parents=True, exist_ok=True)
-    compose(laser_glyph(), (255, 150, 50), seed=11).save(PACKAGE_ICON)
+    compose_two(range_glyph(), (255, 190, 120), beam_glyph(),
+                (255, 255, 255), seed=11).save(PACKAGE_ICON)
     print(f"wrote {PACKAGE_ICON.relative_to(REPO).as_posix()}")
 
 
