@@ -1,0 +1,47 @@
+<Project>
+  <!--
+    Build settings shared by every project in the repo; the same file is in each mod repo. The shared targets
+    (version, store icon, deploy) are in Directory.Build.targets.
+
+    The game, BepInEx and Risk of Options are referenced from NuGet, as in the R2Wiki's ExamplePlugin: the game's
+    publicized reference assemblies (RiskOfRain2.GameLibs) come from the BepInEx feed. None of them is shipped.
+
+    After each build the plugin is copied into a mod manager profile for testing (see DeployToProfile in
+    Directory.Build.targets). Choose another profile, or turn that off, on the command line or with environment
+    variables, e.g.
+      dotnet build -p:ProfileDir="C:\Users\you\AppData\Roaming\r2modmanPlus-local\RiskOfRain2\profiles\Dev"
+      dotnet build -p:DeployToProfile=false
+  -->
+  <PropertyGroup>
+    <ProfileDir Condition="'$(ProfileDir)' == ''">$(APPDATA)\Thunderstore Mod Manager\DataFolder\RiskOfRain2\profiles\Test</ProfileDir>
+    <DeployToProfile Condition="'$(DeployToProfile)' == ''">true</DeployToProfile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>12</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <DebugType>portable</DebugType>
+    <RestoreAdditionalProjectSources>https://nuget.bepinex.dev/v3/index.json</RestoreAdditionalProjectSources>
+    <!-- Reproducible builds that record no local folder names (C:\Users\...): source and PDB paths are written
+         relative to the repo root as /_/. -->
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildThisFileDirectory)=/_/</PathMap>
+    <!-- Don't read git, so a clone and a plain copy of the same sources build the same DLL (SourceLink would embed
+         untracked generated files in the PDB, whose ID the DLL records). The informational version is then the
+         plain version, without a +commit suffix. -->
+    <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Analyzers" Version="1.0.8" PrivateAssets="all" />
+    <PackageReference Include="BepInEx.Core" Version="5.4.21" />
+    <PackageReference Include="RiskOfRain2.GameLibs" Version="1.5.0-r.1" />
+    <PackageReference Include="UnityEngine.Modules" Version="2021.3.45" IncludeAssets="compile" />
+    <PackageReference Include="Rune580.Mods.RiskOfRain2.RiskOfOptions" Version="2.8.6" />
+  </ItemGroup>
+</Project>

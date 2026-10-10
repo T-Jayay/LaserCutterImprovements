@@ -1,0 +1,33 @@
+<Project>
+  <!--
+    Build targets shared by every project in the repo; the same file is in each mod repo. Settings and references
+    are in Directory.Build.props.
+  -->
+  <PropertyGroup>
+    <!-- The Thunderstore package of the mod this project builds, if it has one: thunderstore/<project name>/. -->
+    <ThunderstoreDir>$(MSBuildThisFileDirectory)thunderstore\$(MSBuildProjectName)\</ThunderstoreDir>
+    <ThunderstoreManifest>$(ThunderstoreDir)manifest.json</ThunderstoreManifest>
+    <ThunderstoreIcon>$(ThunderstoreDir)icon.png</ThunderstoreIcon>
+  </PropertyGroup>
+
+  <!-- The assembly version is the manifest's version_number, so no project file holds a version. The plugin's
+       PluginVersion must match it (tools/package.py checks). -->
+  <PropertyGroup Condition="Exists('$(ThunderstoreManifest)')">
+    <Version>$([System.Text.RegularExpressions.Regex]::Match($([System.IO.File]::ReadAllText('$(ThunderstoreManifest)')), '"version_number"\s*:\s*"([^"]*)"').Groups[1].Value)</Version>
+  </PropertyGroup>
+
+  <!-- The store icon, embedded as the manifest resource "<project name>.icon.png" for the Risk of Options mod list. -->
+  <ItemGroup Condition="Exists('$(ThunderstoreIcon)')">
+    <EmbeddedResource Include="$(ThunderstoreIcon)" LogicalName="$(MSBuildProjectName).icon.png" Visible="false" />
+  </ItemGroup>
+
+  <!-- Copies the plugin (DLL and PDB) into the profile's BepInEx\plugins\<assembly name> folder after each build, if
+       the profile exists. Close the game first: it keeps the plugin locked. -->
+  <Target Name="DeployToProfile" AfterTargets="Build" Condition="'$(DeployToProfile)' == 'true' And Exists('$(ProfileDir)')">
+    <PropertyGroup>
+      <PluginDeployDir>$(ProfileDir)\BepInEx\plugins\$(AssemblyName)</PluginDeployDir>
+    </PropertyGroup>
+    <Copy SourceFiles="$(TargetPath);$(TargetDir)$(TargetName).pdb" DestinationFolder="$(PluginDeployDir)" SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="$(MSBuildProjectName) -> $(PluginDeployDir)\$(TargetFileName)" />
+  </Target>
+</Project>
